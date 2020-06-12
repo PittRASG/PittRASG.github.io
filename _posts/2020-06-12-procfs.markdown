@@ -1,0 +1,164 @@
+---
+layout: post
+title: How to Export Data from Kernel to User-Space with Procfs
+date: June 12, 2020, 
+description:
+---
+
+Procfs (/proc) is a virtual pseudo-file system also referred to as a virtual file system. A pesudo-file system such as procfs does not contains *actual* files but rather system and process information (e.g. CPU information, interrupts in use, etc.) and therefore they do not take up disk space (using only main memory). Procfs works in the same way as regular files using the open(), read() and close() system calls. Interestingly, most files exposed by the procfs have a file size of 0 bytes even though they can contain quite a lot of information. The reason is that virtual files in procfs are only populated when requested by the user. 
+
+A common use of procfs is to send data from kernel to the user and vice-versa. In order to demonstrate how to use procfs to send data from the kernel to user-space we are going to modify the kernel to send a random number from the kernel to user-space using procfs. For this example, we are using the Linux 5.4.
+
+Inside <b>fs/proc/base.c</b>, we create the following functions:
+
+{% highlight c %}
+
+// Called from rand_open(), contains necessary arguments to output data to procfs
+static int rand_show(struct seq_file * m, void * v)
+{
+    struct inode * inode = m->private;
+    struct pid_namespace * ns = proc_pid_ns(inode);
+    struct task_struct * p;
+
+    p = get_proc_task(inode);
+    if (!p)
+        return -ESRCH;
+    rand_count(p, ns, m);
+
+    put_task_struct(p);
+
+    return 0;
+}
+
+// Called when writing to procfs file, not used in this case
+static ssize_t rand_write(struct file * file, const char __ user * buf, size_t count, loff_t * offset)
+{
+    return count;
+}
+
+// Called when reading from procfs file
+static int rand_open(struct inode * inode, struct file * filp)
+{
+    return single_open(filp, rand_show, inode);
+}
+
+// Setup file operations
+static const struct file_operations rand_operations = {
+    .open       = rand_open,
+    .read       = seq_read,
+    .write      = rand_write,
+    .llseek     = seq_lseek,
+    .release    = single_release,
+};
+
+{% endhighlight %}
+
+Then, still in the <b>fs/proc/base.c</b>, we add the following line (which creates the actual entry inside procfs):
+{% highlight c %}
+REG("rand",      S_IRUGO, rand_operations),
+{% endhighlight %}
+
+Inside the two declarations of:
+{% highlight c %}
+static const struct pid_entry tgid_base_stuff[] {...}
+{% endhighlight %}
+
+Afterwards, inside <b>kernel/sched/base.c</b> we write the following function,
+{% highlight c %}
+void rand_count(struct task_struct * p, struct pid_namespace * ns , struct seq_file * m)
+{
+    #define P(F) \
+        SEQ_printf(m, "%-21Ld\n", (int) F)
+
+
+    // Get random number and output to procfs
+    int rand;
+    get_random_bytes(&rand, sizeof(int));
+    P(rand);
+
+    #undef P
+}
+{% endhighlight %}
+
+Finally, below is a simple program (adapted from code by Nathan Ackerman) to read the random number we just from procfs:
+{% highlight c %}
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <time.h>
+#include <string.h>
+#include <sys/types.h>
+#include <signal.h>
+
+// Signal handler for CTRL-C
+void sigint_handler(int sig)
+{
+    printf("Ending because of CTRL-C, flushing stdout\n");
+    fflush(stdout);
+    close(1);
+    exit(0);
+    return;
+}
+
+int main(int argc, char * argv[])
+{
+    // Ensure input is valid
+    if (argc < 2) {
+        printf("usage: ./<filename> pid\n");
+        exit(1);
+    }
+
+    // Setup signal handler
+    signal(SIGINT, sigint_handler);
+
+    // Get PID from user input
+    char *pid = argv[1];
+
+    // Calculate microseconds for usleep call
+    int interval_ms = 200;
+    int interval_us = interval_ms*1000; 
+
+    // Open rand procfs file
+    char rand_filename[50];
+    char *proc = "proc/";
+    strcat(rand_filename, proc);
+    strcat(rand_filename, pid);
+    strcat(rand_filename, "/rand");
+
+    FILE *rand_file = fopen(rand_filename, "r");
+    if (!rand_file) {
+        printf("Error: could not open rand file: %s\n", rand_filename);
+    }
+
+    // Read infinitely from procfs, until CTRL-C 
+    while (1) {
+        char rand_buf[22];
+        struct timespec ts;
+
+        rand_buf[21] = '\0';
+
+        // Calculate sleep time
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+        long ns = ts.tv_nsec;
+        time_t sec = ts.tv_sec;
+        
+        // Read procfs file
+        fread(&rand_buf , 21*sizeof(char), 1, rand_file);
+        printf("s: %ld ns:%ld rand:%s\n", sec, ns, rand_buf);
+
+        // Close and reopen procfs file to read again
+        fclose(rand_file)
+        usleep(interval_us)
+        rand_file = fopen(rand_filename, "r");
+    }
+
+    return 0;
+}
+{% endhighlight %}
+
+<h4>References</h4>
+<ol>
+    <li><a href="https://wiki.gentoo.org/wiki/Procfs">https://wiki.gentoo.org/wiki/Procfs</a></li>
+    <li><a href="https://www.tldp.org/LDP/Linux-Filesystem-Hierarchy/html/proc.html">https://www.tldp.org/LDP/Linux-Filesystem-Hierarchy/html/proc.html</a></li>
+    <li><a href="https://wiki.archlinux.org/index.php/Procfs">https://wiki.archlinux.org/index.php/Procfs</a></li>
+</ol>
