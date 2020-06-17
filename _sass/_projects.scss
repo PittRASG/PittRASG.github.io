@@ -26,14 +26,13 @@
             width: 100%;
 
             span {
-                display: none;
                 position: absolute;
                 top: 0;
                 left: 0;
                 bottom: 0;
                 right: 0;
                 background: rgba(0,0,0,0.4);
-                color: $grey-color-light;
+                color: white;
                 padding: 40px;
                 text-align: center;
 
@@ -54,4 +53,25 @@
             }
         }
     }
+}
+
+.smallmargin {
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.column {
+    margin-top: 0.5rem;
+    float: left;
+    width: 33.33%;
+}
+
+.row:after {
+    content: "";
+    display: table;
+    clear: both;
+}
+
+.center {
+    text-align: center;
 }

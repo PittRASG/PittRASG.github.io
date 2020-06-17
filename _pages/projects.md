@@ -2,7 +2,7 @@
 layout: page
 title: projects
 permalink: /projects/
-description: Projects by students and faculty of the Pitt Scheduling Group.
+description: Projects by students and faculty of Pitt RASG.
 ---
 
 {% for project in site.projects %}

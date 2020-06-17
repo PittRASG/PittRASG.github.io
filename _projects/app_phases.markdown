@@ -1,6 +1,6 @@
 ---
 layout: page
-title: Scheduling of Application Phases
+title: Detection and Scheduling of Application Phases
 description: Intelligent Characterization and Scheduling of Application Phases for Energy Efficiency in Heterogeneous Processors
 ---
 

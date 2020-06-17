@@ -1,8 +1,8 @@
 # -----------------------------------------------------------------------------
 # Site settings
 # -----------------------------------------------------------------------------
-name: Pitt Scheduling Group
-email: cspittscheduling@gmail.com
+name: Pitt RASG
+email: pittrasg@gmail.com
 description: > # this means to ignore newlines until "url:
 # footer_text: >
 #   Powered by <a href="http://jekyllrb.com/" target="_blank">Jekyll</a> with <a href="https://github.com/alshedivat/al-folio">al-folio</a> theme.
@@ -43,8 +43,8 @@ google_analytics: UA-XXXXXXXXX # out your google-analytics code
 # -----------------------------------------------------------------------------
 # Blog
 # -----------------------------------------------------------------------------
-blog_name: al-folio
-blog_description: a simple whitespace theme for academics
+blog_name: RASG blog
+blog_description: Posts about things we learn along the way.
 
 # Pagination
 paginate: 4
@@ -76,6 +76,9 @@ collections:
   projects:
     output: true
     permalink: /projects/:path/
+  software:
+    output: true
+    permalink: /software/:path/
 
 news_limit: 5
 
