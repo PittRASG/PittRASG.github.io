@@ -1,0 +1,86 @@
+---
+layout: post
+title: How to Use ARM Performance Monitoring Units(PMU) in ARMv7
+date: August 20, 2020
+<!-- description:  -->
+---
+
+This guide will cover how to use the CPU performance counters in ARMv7 through inline assembly. There are 4 programmable counters which can each track one of the architectural events, with the option of having a 5th counter enabled which may only track cycles. Firstly, if you need to be doing this from user-space code, you must enable that as the instructions and registers used are priveledged and can only be accessed by the kernel by default. To do this, you must run the following assembly from kernel space, either via a modified kernel or a kernel module.
+
+
+{% highlight c %}
+asm volatile ("MCR p15, 0, %0, C9, C14, 0\n\t" :: "r"(1));
+{% endhighlight %}
+
+The MCR and MRC instructions will be used to write to the PMU. The PMU is a coprocessor and these instructions stand for Move to Coprocessor from Register and Move to Register from Coprocessor. Note that these instructions work like reading and writing to registers but are a little slower. 
+
+For a list of events you can track, you must look in the arm manual. Not all arm processors support all of the events in ARMv7, even if they run ARMv7.
+
+<a href="https://developer.arm.com/documentation/ddi0464/f/performance-monitoring-unit/events">ARM Manual</a>
+
+
+Note: the counters stop working after a processor goes to sleep and wakes back up. You can run this alongside the code in the idle scheduler (see cpu_startup_entry function) as the idle scheduler is in charge of waking a processor up.
+
+Before declaring which events you wish to track, you must set up the options with the PMU. The options will go into a variable that is passed to the coprocessor as shown in the example below. The lowest 4 bits of 0x8000000f are saying which of the 4 programmable counters to enable/clear overflows for.
+
+{% highlight c %}
+static inline void init_perfcounters(struct task_struct *tsk)
+{
+    // Enable all counters (including cycle counter)
+    int32_t do_reset = 1;
+    int32_t enable_divider = 0;
+    int32_t value = 1;
+
+    // Enable user-mode access to performance counters
+    asm volatile ("MCR p15, 0, %0, C9, C14, 0\n\t" :: "r"(1));
+
+    // Peform reset  
+    if (do_reset)
+    {
+        value |= 2;     // reset all counters to zero
+        value |= 4;     // reset cycle counter to zero
+    } 
+
+    if (enable_divider)
+        value |= 8;     // enable "by 64" divider for CCNT
+
+    value |= 16;
+
+    // Program the performance-counter control-register
+    asm volatile ("MCR p15, 0, %0, c9, c12, 0\t\n" :: "r"(value));  
+
+    // Enable all counters
+    asm volatile ("MCR p15, 0, %0, c9, c12, 1\t\n" :: "r"(0x8000000f));  
+
+    // Clear overflows
+    asm volatile ("MCR p15, 0, %0, c9, c12, 3\t\n" :: "r"(0x8000000f));
+
+    //Now you must select which events you wish to track
+
+}
+{% endhighlight %}
+
+Telling the system to track an event is a two step process. First, you must say which of your 4 enabled programmable counters you wish to use.
+
+
+{% highlight c %}
+asm volatile ("MCR p15, 0, %0, C9, C12, 5" :: "r"(0x00));//value in "r"(0x??) is your counter number
+{% endhighlight %}
+
+Once you have selected this counter for programming, you may write into it which event you would like it to track.
+
+{% highlight c %}
+asm volatile ("MCR p15, 0, %0, C9, C13, 1" :: "r"(0x8));//0x8 comes from the manual and is Instruction architecturally executed
+{% endhighlight %}
+
+Reading one of these events is likewise a two step process of selecting a register to read and then doing the actual read.
+
+
+{% highlight c %}
+unsigned int counter_value;
+asm volatile ("MCR p15, 0, %0, C9, C12, 5" :: "r"(0x00));
+asm volatile ("MRC p15, 0, %0, C9, C13, 2" :"=r"(counter_value));
+{% endhighlight %}
+
+
+Good luck!

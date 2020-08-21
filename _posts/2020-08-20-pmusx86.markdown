@@ -1,0 +1,49 @@
+---
+layout: post
+title: How to Use x86 CPU Performance Counters with Inline Assembly
+date: August 20th, 2020, 
+description:
+---
+
+The microarchitecture you are using will determine which counters are available to you and what their event codes are. To obtain this information you will need to download the Intel 64 ia-32 architectures software developer system programming manual. The information needed will be in Volume 3B, chapters 18 and 19. Chapter 18 is a general guide to their counter interface and control registers. Chapter 19 lists the event codes for their different microarchitectures. In this guide we will go over some of the standards, but you must check the manual for the events code that you need.
+
+Most microarchitectures on their modern hyperthreaded cores will allow for 4 programmable counters per core, with the option of having 3 other standard events tracked. If hyperthreading is turned off, you may use 8 programmable counters per core. Events are tracked per logical core. For example, if core 0 and core 1 are hyperthreaded and have a private L1 cached partitioned between them, when you track cache misses for core 0, you are only getting the cache misses from its portion of the L1 cache. Performance counters are actually an event/mask combination. Many events may use the same event code, but the mask they use will filter out what is actually wanted to represent that event. To enable the counters, you must write a 1 in the crresponding bit to register 0x3f with wrmsr as shown below. See "Figure 18-3. Layout of IA32_PERF_GLOBAL_CTRL MSR" in the manual.
+
+{% highlight c %}
+unsigned long a, 
+unsigned int c;
+a = 00000007000000ff;//enable 3 fixed counters and all 8 programmable on non-hyperthreaded core
+c = 0x38f;//IA32_PERF_GLOBAL_CTRL MSR
+__asm__ __volatile__("wrmsr" : : "c" (c), "a" (a));
+{% endhighlight %}
+
+Note: Counters stop working when a cpu goes to sleep and wakes up again. The code to start a counter must be run on cpu startup. CPU startup handled by the idle scheduler in Linux (as of 4.10.18) and the code to start counters can be put there to run alongside that (see cpu_startup_entry).
+
+The programmable counters work via a pair of registers. These registers can be read and written just like normal general purpose cpu registers, but with different instructions. These registers do take slightly longer to operate on (25-40 cycles). There is a register that controls what event to track and a corresponding register which holds the actual count of that event. In this example, we write into register 0x186 to tell it we want to track instructions completed. We can then read the instructions counter out of the correspong register 0xc1. If we wanted to use a second counter, we would use 0x187 and 0xc2 respectively, increasing by one each time.
+
+
+{% highlight c %}
+void enable_instruction_counter(void *info)
+{
+  	unsigned a, c;
+  	a = 0x004300c0;//value to tell event select reg to track instructions
+  	c = 0x186;//event select register corresponding to 0xc1 pcr
+  	__asm__ __volatile__("wrmsr" : : "c" (c), "a" (a));
+}
+
+unsigned long rdpmc_instructions(void)
+{
+  	unsigned a, d, c;
+  	c = 0xc1;//the counter corresponding to 0x186
+  	__asm__ __volatile__("rdmsr" : "=a" (a), "=d" (d) : "c" (c));
+ 
+   return ((unsigned long)a) | (((unsigned long)d) << 32);;
+}
+{% endhighlight %}
+
+These instructions are priveledged and can only access these registers from kernel space, unless user space is given permission (with assembly that must be run from kernel space via a modified kernel or a kernel module). To do so you must enable the corresponding bit (one of the lowest 4 bits) in register 0x3d. See "Figure 18-2. Layout of IA32_FIXED_CTR_CTRL MSR". The macro used informs the compiler that you will be using registers and that it should save the values in them before executing your code. The instructions used stand for write msr (model specific register) and read msr. The contant "a" used in the enable function will need to be modified depending on what counter you wish to track and what options you want. The lowest two bytes are the event code and mask. Other bits are various options like user space or kernel space tracking. See "Figure 18-60. PerfEvtSel0 and PerfEvtSel1 MSRs" in the manual for an example for one microarchitecture.
+
+Some events and masks are common across the x86 architecture. The example is one of them. See "Table 19-1. Architectural Performance Events" for the list of all 7 common ones. Note the event num of 0xC0 and Umask Value of 0x00 are where we derive the lowest 16 bits of the constant "a" for the previous example. x86 has MANY trackable counters beyond these 7, but you will need to look in chapter 19 under your specific architecture to find the event codes and masks. Good luck!
+
+
+

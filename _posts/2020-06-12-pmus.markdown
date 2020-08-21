@@ -1,7 +1,0 @@
----
-layout: post
-title: How to Use ARM Performance Monitoring Units(PMU) in Linux 5
-date: June 12, 2020
-<!-- description:  -->
----
-Coming Soon!
