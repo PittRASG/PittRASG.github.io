@@ -1,10 +1,13 @@
 ---
 layout: about
 permalink: /
-title: Resource Allocation and Scheduling Group (RASG) @ PITT SCI
+title: Resource Allocation and Scheduling Group (RASG) @SCI-Pitt
 description: <a href="http://sci.pitt.edu/">School of Computing and Information.</a>
+profile:
+  align: right
+  image: pitt.png
+news: true
+
 ---
 
-Welcome to the Pitt Resource Allocation and Scheduling Group (RASG) webpage. 
-
-Check back soon for more news!
+The Resource Allocation and Scheduling Group (RASG) focuses on resource-efficiency in computer systems.
