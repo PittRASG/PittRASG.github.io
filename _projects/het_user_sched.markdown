@@ -70,9 +70,14 @@ There are two models used in the scheduling, optimizing for different metrics. T
 </p>
 
 
+<h4>The Kernel Architecture</h4>
+<p>Click to view in another page.</p>
+<div class="img_row">
+    <img class="col one left" src="/assets/img/kernel_diagram.jpg" alt="" title="Kernel Architecture" onclick="window.open('/assets/img/kernel_diagram.jpg', '_blank');"/>
+</div>
 
 <!-- Where is it currently? -->
 <h4>Current State</h4>
 <p>
-This project in its current form is not yet completed. Currently the scheduler mappings have been created and the mechanisms in the kernel have been built, but the mappings have not yet been put into the kernel.
+Currently, the scheduler was trained and tested with microbenchmarks written to stress particular behaviors in the system. The next step is to try scheduling real applications.
 </p>
